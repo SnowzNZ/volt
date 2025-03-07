@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import subprocess
 import threading
@@ -15,6 +16,15 @@ WM_POWERBROADCAST = 0x0218
 PBT_APMPOWERSTATUSCHANGE = 0x000A
 
 CONFIG_FILE = "power_plans.json"
+LOGS_DIR = "logs"
+
+os.makedirs(LOGS_DIR, exist_ok=True)
+
+logging.basicConfig(
+    filename=os.path.join(LOGS_DIR, "volt.log"),
+    level=logging.DEBUG,
+    format="%(asctime)s - %(levelname)s - %(message)s",
+)
 
 
 class Volt:
@@ -42,7 +52,7 @@ class Volt:
             )
             output = result.stdout
         except subprocess.CalledProcessError as e:
-            print(f"Error running powercfg: {e}")
+            logging.error(f"Error running powercfg: {e}")
             return [], None
 
         power_plans: list[tuple[uuid.UUID, str]] = []
@@ -58,7 +68,7 @@ class Volt:
                         active_guid = uuid.UUID(guid_part)
                         break
                     except ValueError:
-                        print(f"Invalid GUID: {guid_part}")
+                        logging.error(f"Invalid GUID: {guid_part}")
 
         for line in lines:
             if "Power Scheme GUID:" in line:
@@ -71,7 +81,7 @@ class Volt:
                         guid = uuid.UUID(guid_part)
                         power_plans.append((guid, name_part))
                     except ValueError:
-                        print(f"Invalid GUID: {guid_part}")
+                        logging.error(f"Invalid GUID: {guid_part}")
 
         return power_plans, active_guid
 
@@ -80,7 +90,7 @@ class Volt:
             subprocess.run(["powercfg", "/S", str(guid)], check=True)
             self.update_menu()
         except subprocess.CalledProcessError as e:
-            print(f"Error setting power plan: {e}")
+            logging.error(f"Error setting power plan: {e}")
 
     def create_menu_item(
         self, guid: uuid.UUID, name: str, is_active: bool, power_state: PowerState
@@ -105,7 +115,7 @@ class Volt:
             try:
                 self.set_power_plan(uuid.UUID(guid))
             except ValueError:
-                print(f"Invalid GUID in saved plans: {guid}")
+                logging.error(f"Invalid GUID in saved plans: {guid}")
 
     def update_menu(self):
         power_plans, active_guid = self.get_power_plans()
@@ -186,7 +196,6 @@ class Volt:
                 elif battery_status["ACLineStatus"] == 1:
                     self.power_state = PowerState.AC
                     self.apply_saved_plan("plugged_in")
-                self.icon.title = f"Volt - {self.power_state.display_name}"
             return win32gui.DefWindowProc(hwnd, msg, wparam, lparam)
 
         wc = win32gui.WNDCLASS()
