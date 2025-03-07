@@ -5,4 +5,4 @@
 </h1>
 <p align="center">
 
-Simple windows tray tool to manage your active powerplan.
+Simple windows tray tool to apply a power plan based on the current power state.
