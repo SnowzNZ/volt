@@ -1,5 +1,5 @@
 import json
-import logging
+import logging as logger
 import os
 import subprocess
 import threading
@@ -20,9 +20,9 @@ LOGS_DIR = "logs"
 
 os.makedirs(LOGS_DIR, exist_ok=True)
 
-logging.basicConfig(
+logger.basicConfig(
     filename=os.path.join(LOGS_DIR, "volt.log"),
-    level=logging.DEBUG,
+    level=logger.DEBUG,
     format="%(asctime)s - %(levelname)s - %(message)s",
 )
 
@@ -52,7 +52,7 @@ class Volt:
             )
             output = result.stdout
         except subprocess.CalledProcessError as e:
-            logging.error(f"Error running powercfg: {e}")
+            logger.error(f"Error running powercfg: {e}")
             return [], None
 
         power_plans: list[tuple[uuid.UUID, str]] = []
@@ -68,7 +68,7 @@ class Volt:
                         active_guid = uuid.UUID(guid_part)
                         break
                     except ValueError:
-                        logging.error(f"Invalid GUID: {guid_part}")
+                        logger.error(f"Invalid GUID: {guid_part}")
 
         for line in lines:
             if "Power Scheme GUID:" in line:
@@ -81,7 +81,7 @@ class Volt:
                         guid = uuid.UUID(guid_part)
                         power_plans.append((guid, name_part))
                     except ValueError:
-                        logging.error(f"Invalid GUID: {guid_part}")
+                        logger.error(f"Invalid GUID: {guid_part}")
 
         return power_plans, active_guid
 
@@ -90,7 +90,7 @@ class Volt:
             subprocess.run(["powercfg", "/S", str(guid)], check=True)
             self.update_menu()
         except subprocess.CalledProcessError as e:
-            logging.error(f"Error setting power plan: {e}")
+            logger.error(f"Error setting power plan: {e}")
 
     def create_menu_item(
         self, guid: uuid.UUID, name: str, is_active: bool, power_state: PowerState
@@ -115,7 +115,7 @@ class Volt:
             try:
                 self.set_power_plan(uuid.UUID(guid))
             except ValueError:
-                logging.error(f"Invalid GUID in saved plans: {guid}")
+                logger.error(f"Invalid GUID in saved plans: {guid}")
 
     def update_menu(self):
         power_plans, active_guid = self.get_power_plans()
