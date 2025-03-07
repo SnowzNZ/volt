@@ -187,7 +187,7 @@ class Volt:
                 elif battery_status["ACLineStatus"] == 1:
                     self.power_state = PowerState.AC
 
-                self.apply_saved_plan(self.power_state)
+                self.apply_saved_plan(self.power_state.raw_name)
                 self.icon.title = f"Volt - {self.power_state.display_name}"
             return win32gui.DefWindowProc(hwnd, msg, wparam, lparam)
 
