@@ -1,0 +1,1 @@
+nuitka --standalone --windows-console-mode=disable --include-data-file=icon.png=icon.png --windows-icon-from-ico=icon.png --output-filename=volt.exe src/main.py
