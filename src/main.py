@@ -31,7 +31,7 @@ class Volt:
     def __init__(self, icon_path="icon.png"):
         self.icon_path = icon_path
         self.icon = None
-        self.power_state: PowerState = PowerState.UNKNOWN
+        self.power_state: PowerState = self.get_current_power_state()
         self.monitor_thread = None
         self.saved_plans = self.load_saved_plans()
 
@@ -92,10 +92,19 @@ class Volt:
         except subprocess.CalledProcessError as e:
             logger.error(f"Error setting power plan: {e}")
 
+    def get_current_power_state(self) -> PowerState:
+        battery_status = win32api.GetSystemPowerStatus()
+        if battery_status["ACLineStatus"] == 1:
+            return PowerState.AC
+        else:
+            return PowerState.BATTERY
+
     def create_menu_item(
         self, guid: uuid.UUID, name: str, is_active: bool, power_state: PowerState
     ):
         def on_click():
+            if power_state == self.power_state:
+                self.set_power_plan(guid)
             self.save_plan_for_state(power_state, guid),
 
         return MenuItem(
@@ -117,68 +126,51 @@ class Volt:
             except ValueError:
                 logger.error(f"Invalid GUID in saved plans: {guid}")
 
-    def update_menu(self):
-        power_plans, active_guid = self.get_power_plans()
-
-        menu_items = [
+    def generate_power_menu_items(self, active_guid: uuid.UUID):
+        return [
             MenuItem(
-                "Plugged In",
+                "**Plugged In**" if self.power_state == PowerState.AC else "Plugged In",
                 Menu(
                     *[
                         self.create_menu_item(
                             guid, name, guid == active_guid, PowerState.AC
                         )
-                        for guid, name in power_plans
-                    ]
+                        for guid, name in self.get_power_plans()[0]
+                    ],
                 ),
             ),
             MenuItem(
-                "On Battery",
+                (
+                    "**On Battery**"
+                    if self.power_state == PowerState.BATTERY
+                    else "On Battery"
+                ),
                 Menu(
                     *[
                         self.create_menu_item(
                             guid, name, guid == active_guid, PowerState.BATTERY
                         )
-                        for guid, name in power_plans
-                    ]
+                        for guid, name in self.get_power_plans()[0]
+                    ],
                 ),
             ),
-            MenuItem("Exit", lambda: self.stop()),
         ]
 
+    def update_menu(self):
+        power_plans, active_guid = self.get_power_plans()
+        menu_items = self.generate_power_menu_items(active_guid) + [
+            MenuItem("Exit volt", lambda: self.icon.stop()),
+        ]
         self.icon.menu = Menu(*menu_items)
 
     def initialize_tray(self) -> None:
         power_plans, active_guid = self.get_power_plans()
-
-        menu_items = [
-            MenuItem(
-                "Plugged In",
-                Menu(
-                    *[
-                        self.create_menu_item(
-                            guid, name, guid == active_guid, PowerState.AC
-                        )
-                        for guid, name in power_plans
-                    ],
-                ),
-            ),
-            MenuItem(
-                "On Battery",
-                Menu(
-                    *[
-                        self.create_menu_item(
-                            guid, name, guid == active_guid, PowerState.BATTERY
-                        )
-                        for guid, name in power_plans
-                    ],
-                ),
-            ),
-            MenuItem("Exit", lambda: self.stop()),
+        menu_items = self.generate_power_menu_items(active_guid) + [
+            MenuItem("Exit volt", lambda: self.icon.stop()),
         ]
-
         menu = Menu(*menu_items)
         self.icon = Icon("volt", Image.open(self.icon_path), "Volt", menu)
+        self.icon.title = f"Volt - {self.power_state.display_name}"
         self.icon.run()
 
     def stop(self):
@@ -192,10 +184,11 @@ class Volt:
                 battery_status = win32api.GetSystemPowerStatus()
                 if battery_status["ACLineStatus"] == 0:
                     self.power_state = PowerState.BATTERY
-                    self.apply_saved_plan("on_battery")
                 elif battery_status["ACLineStatus"] == 1:
                     self.power_state = PowerState.AC
-                    self.apply_saved_plan("plugged_in")
+
+                self.apply_saved_plan(self.power_state)
+                self.icon.title = f"Volt - {self.power_state.display_name}"
             return win32gui.DefWindowProc(hwnd, msg, wparam, lparam)
 
         wc = win32gui.WNDCLASS()
